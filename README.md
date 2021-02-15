@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Example project showing how MongoDB's aggregation pipeline can be used to perform data masking on records contained in a collection, where the changes are reversible (a different project provides [non-reversible data masking examples](https://github.com/pkdone/mongo-data-masking)). For reasons why reversible data masking is often required and how this can be achieved in MongoDB, first read the blog post that accompanies this project at:
+Example project showing how MongoDB's aggregation pipeline can be used to perform data masking on records contained in a collection, where the changes are, with the right privileges, reversible (a different project provides [non-reversible data masking examples](https://github.com/pkdone/mongo-data-masking)). For reasons why reversible data masking is often required and how this can be achieved in MongoDB, first read the blog post that accompanies this project at:
 
 * [MongoDB Reversible Data Masking Examples blog post](https://pauldone.blogspot.com/2021/02/mongdb-reversible-data-masking.html) 
 
