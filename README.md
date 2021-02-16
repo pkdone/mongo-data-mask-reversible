@@ -2,16 +2,16 @@
 
 ## Introduction
 
-Example project showing how MongoDB's aggregation pipeline can be used to perform data masking on records contained in a collection, where the changes are, with the right privileges, reversible (a different project provides [non-reversible data masking examples](https://github.com/pkdone/mongo-data-masking)). For reasons why reversible data masking is often required and how this can be achieved in MongoDB, first read the blog post that accompanies this project at:
+Example project showing how MongoDB's aggregation pipeline can be used to perform data masking on records contained in a collection, where the changes are reversible (for those with sufficient privileges). A different project provides [non-reversible data masking examples](https://github.com/pkdone/mongo-data-masking). For the reasons why reversible data masking is often required and how this can be achieved in MongoDB, first read the blog post that accompanies this project at:
 
 * [MongoDB Reversible Data Masking Examples blog post](https://pauldone.blogspot.com/2021/02/mongdb-reversible-data-masking.html) 
 
-The sample scenario for this project will be based on an organisation collecting results of peoples' tests. These results could be from medical tests in a hospital, or from academic tests in a university, for example. Two key aggregation pipelines will be used:
+The sample scenario for this project will be based on an organisation collecting results of people's tests. These results could be from medical tests in a hospital, or from academic tests in a university, for example. Two key aggregation pipelines will be used in sequence:
 
- 1. A pipeline to generate new unique anonymised IDs for each person appearing in a test result, in a new _mappings_ collection using the _idempotent masked-id generator_ pattern
- 2. A pipeline to generate a masked version of the test results, where the person's id has been replaced with an anonymised (but reversible) one, plus some other fields have been filtered out (e.g. _national id_, _last name_) or obfuscated with a partly randomised value (e.g _data of birth_). 
+ 1. A pipeline to generate new unique anonymised IDs for each person appearing in a test result, into a new _mappings_ collection using the _idempotent masked-id generator_ pattern
+ 2. A pipeline to generate a masked version of the test results, where the person's id has been replaced with an anonymised (but reversible) one; additionally some other fields will be filtered out (e.g. _national id_, _last name_) or obfuscated with a partly randomised value (e.g _data of birth_). 
     
-The screenshot below shows an example test result where the person's id from the original data set has been mapped to a newly generated anonymous unique identifier (_\_id_) in a _mappings_ collection and subsequently the data masked data set has been generated using this anonymised ID for the person's ID
+The screenshot below shows an example test result where the person's id from the original data-set has been mapped to a newly generated anonymous unique identifier (_\_id_) in a _mappings_ collection and subsequently the data masked data-set has been generated using this anonymised ID for the person's ID
 
  ![Data Before And After Mapping Plus Mapping Collection](.datapic.png)
 
@@ -144,11 +144,11 @@ db.tests.find().pretty();
 
 ## Use The Idempotent Masked-ID Generator Pattern To Populate A Masked-ID Mappings Collection
 
-A collection called `masked_id_mappings` will be used to record the mappings of original unique ids (e.g. person IDs), from the original unmasked collections, to generated [universally unique identifiers](https://en.wikipedia.org/wiki/Universally_unique_identifier) (UUIDs). This mappings collection will also capture the downstream data set consumer purpose about why the data set was requested and will be used (e.g. 'Internal Demographics Reporter 45XD', 'Test Results MI Analyzer 2021A'). This purpose is to enable a different set of UUIDs to be generated per copy of masked data set distributed to different consumers, so that data given to each doesn't share the same UUIDs. This helps to prevent identities from different distributed masked data sets to be correlated together if a consuming party has access to more than one masked data set. The `masked_id_mappings` collection also tracks when the UUID was generated, plus when the mapping record is marked to expire (using a [TTL index](https://docs.mongodb.com/manual/core/index-ttl/)), which, for this example, is when the UUID is over 3 years old (exclude this index TTL definition if you don't want an 'auto-expiry' policy to be enforced).
+A collection called `masked_id_mappings` will be used to record the mappings of original unique ids (e.g. person IDs), from the original unmasked collections, to newly generated [universally unique identifiers](https://en.wikipedia.org/wiki/Universally_unique_identifier) (UUIDs). This mappings collection will also capture the downstream data-set consumer purpose about why the data-set was requested and will be used (e.g. 'Internal Demographics Reporter 45XD', 'Test Results MI Analyzer 2021A'). This _purpose_ is to enable a different set of UUIDs to be generated per copy of masked data-set distributed to different consumers, so that data given to each doesn't share the same UUIDs. This helps to prevent identities from different distributed masked data-sets to be correlated together if a consuming party has access to more than one masked data-set. The `masked_id_mappings` collection also tracks when the UUID was generated, plus when the mapping record is marked to expire (using a [TTL index](https://docs.mongodb.com/manual/core/index-ttl/)), which, for this example, is when the UUID is over 3 years old (exclude this index TTL definition if you don't want an 'auto-expiry' policy to be enforced).
 
 Below is an example of how a single mapping record in the `masked_id_mappings` collection might look.
 
-```json
+```javascript
 {
 	"_id" : "021a6dab-a17a-4c4b-8c48-448becf62a70",
 	"data_purpose_id" : "Partner ACME Data Dump Request",
@@ -158,7 +158,7 @@ Below is an example of how a single mapping record in the `masked_id_mappings` c
 }
 ```
 
-The _\_id_ field is used to store the UUID in these examples.
+The _\_id_ field is used to store the newly generated UUID, in these examples.
 
 To define this `masked_id_mappings` collection (specifically its indexes), execute the following in the Mongo Shell:
 
@@ -168,9 +168,9 @@ db.masked_id_mappings.createIndex({'date_generated': 1});
 db.masked_id_mappings.createIndex({'original_id': 1, 'data_purpose_id': 1},  {'unique': true});
 ```
 
-The _idempotent masked-id generator_ pattern will be used to scan through all raw data collections and produce new corresponding UUIDs for the original unique record IDs that exist in the source collections. Essentially this pattern is realised by an aggregation pipeline which is executed on each source collection, picking out the original unique id and then placing a record of this, with a newly generated UUID it is mapped to (plus the other metadata such as `data_purpose_id`, `date_generated`, `date_expired`) into the `masked_id_mappings`. The creation of each new mapping record is only executed if a mapping doesn't already exist for the original unique id of each source record. By being idempotent in this way, when further collections are run through the same aggregation pipeline, if some records from these other collections have the same original id as one that already exists in `masked_id_mappings`, a new UUID will not need to be generated, thus ensuring the same original unique id is always mapped to the same replacement UUID, regardless of how often it appears in various collections.
+The _idempotent masked-id generator_ pattern will be used to scan through all raw data collections and produce new corresponding UUIDs for the original unique record IDs that exist in the source collections. Essentially, this pattern is realised by an aggregation pipeline which is executed on each source collection, picking out the original unique id and then placing a record of this, with a newly generated UUID it is mapped to (plus the other metadata such as `data_purpose_id`, `date_generated`, `date_expired`) into the `masked_id_mappings` collection. The creation of each new mapping record is only executed if a mapping doesn't already exist for the original unique id of each source record. By being idempotent in this way, when further collections are run through the same aggregation pipeline, if some records from these other collections have the same original id as one that already exists in `masked_id_mappings`, a new UUID will not need to be generated, thus ensuring the same original unique id is always mapped to the same replacement UUID, regardless of how often it appears in various collections.
 
-From the Mongo Shell execute the following to define the _idempotent masked-id generator_ aggregation pipeline (you will notice that two fields' values are intentionally marked as _TO-REPLACE_):
+From the Mongo Shell execute the following to define the _idempotent masked-id generator_ aggregation pipeline (you will notice that two fields' values are intentionally marked as _TO-REPLACE_ - do not change these - just run the code as-is):
 
 ```javascript
 var maskedIdGeneratprPipeline = [
@@ -201,16 +201,16 @@ var maskedIdGeneratprPipeline = [
 ];
 ```
 
-&nbsp;_NOTE_: The `masked_id_mappings` collection should be locked down with appropriate [RBAC](https://docs.mongodb.com/manual/core/authorization/) rules to greatly restrict access.
+&nbsp;_NOTE_: The `masked_id_mappings` collection should be locked down with appropriate [RBAC](https://docs.mongodb.com/manual/core/authorization/) rules to restrict access.
 
-Now before running the _idempotent masked-id generator_ aggregation pipeline against some collections, override the name of the unique id field in the source collecitons to be _person_id, in this case and set the purpose to be _'Internal Demographics Reporter 45XD'_ (the purpose label correspinding to a pretend downstream consumer of masked data who has requested the data-set).
+Now before running the _idempotent masked-id generator_ aggregation pipeline against some collections, override the name of the unique id field of the source collections to be _person\_id_, in this case and set the purpose to be _'Internal Demographics Reporter 45XD'_ (the purpose label corresponding to a fictitious downstream consumer of masked data who has requested the data-set).
 
 ```javascript
 // Set the name of the field (with $ reference prefix) for the original unique field to match in each record
 // (for our examples for both the 'persons' & 'tests' collection this will be the 'person_id' field)
 maskedIdGeneratprPipeline[0]['$project']['original_id'] = '$person_id';
 
-// Generate IDs ready for a masked copy of the data set to be used for the purpose 'Internal Demographics Reporter 45XD'
+// Generate IDs ready for a masked copy of the data-set to be used for the purpose 'Internal Demographics Reporter 45XD'
 maskedIdGeneratprPipeline[0]['$project']['data_purpose_id'] = 'Internal Demographics Reporter 45XD';
 ```
 
@@ -232,19 +232,19 @@ db.masked_id_mappings.find().pretty();
 
 The _persons_ collection contains 3 unique persons, but as you can see from the output the `masked_id_mappings` collection only increased in record count by one, because two of the three _persons_ records had unique ids which were already captured in the `masked_id_mappings` collection from the pipeline having already been run against the _tests_ collection.
 
-So far ID mappings have only been generated for one downstream consumer masked data-set purpose, _'Internal Demographics Reporter 45XD'_. Now, lets pretend another party has requested a copy of the same _tests_ data set, that needs to be masked, for the purpose 'Test Results MI Analyzer 2021A'. So execute the following mark the pipeline to now be used for the new purpose and to generate id mappings for this second purpose, for use in masking the _tests_ collection:
+So far, ID mappings have only been generated for one downstream consumer masked data-set purpose, _'Internal Demographics Reporter 45XD'_. Now, lets pretend another party has requested a copy of the same _tests_ data-set, that needs to be masked, for the purpose 'Test Results MI Analyzer 2021A'. Therefore, execute the following mark the pipeline to now be used for the new purpose and to generate id mappings for this second purpose, for use in masking the _tests_ collection:
 
 ```javascript
-// Generate IDs ready for a masked copy of the data set to be used for the purpose 'Test Results MI Analyzer 2021A'
+// Generate IDs ready for a masked copy of the data-set to be used for the purpose 'Test Results MI Analyzer 2021A'
 maskedIdGeneratprPipeline[0]['$project']['data_purpose_id'] = 'Test Results MI Analyzer 2021A';
 
 db.tests.aggregate(maskedIdGeneratprPipeline);
 db.masked_id_mappings.find().pretty();
 ```
 
-The output should now look similar to below, with 3 mappings having run both the _tests_ collection and the _persons_ collection through the _idempotent masked-id generator_ for one purpose and 2 mappings having run just the _tests_ collection through the _idempotent masked-id generator_.
+The output should now look similar to below, with 3 mappings resulting from having run both the _tests_ collection and the _persons_ collection through the _idempotent masked-id generator_ for one purpose and 2 mappings resulting from having run just the _tests_ collection through the _idempotent masked-id generator_.
 
-```json
+```javascript
 {
 	"_id" : "9277a551-997f-4347-897a-48c8557c5067",
 	"data_purpose_id" : "Internal Demographics Reporter 45XD",
@@ -289,9 +289,9 @@ The output should now look similar to below, with 3 mappings having run both the
 
 ## Create A Data Masked Copy Of A Collection Using Reversible Unique IDs
 
-So now we want to generate a new collection `tests_redacted` to hold the masked version of the data sourced from the `tests` collection, ready to then be distributed to the requesting consumer party (i.e. where the purpose was given as 'Internal Demographics Reporter 45XD'). The copy of the data set in the new collection, will have the original `persons_id` replaced with the UUID and, similar to the xx project, will have some other fields obfuscated/redacted (e.g. `dob`) or filtered out (e.g. `national_id`).
+So now we want to generate a new collection `tests_redacted` to hold the masked version of the data sourced from the `tests` collection, ready to then be distributed to the requesting 3rd party research group (i.e. where the purpose was given as 'Internal Demographics Reporter 45XD'). The copy of the data-set in the new collection, will have the original `persons_id` replaced with the UUID and, similar to the [non-reversible data masking examples project](https://github.com/pkdone/mongo-data-masking), will have some other fields obfuscated/redacted (e.g. `dob`) or filtered out (e.g. `national_id`).
 
-Execute the following to specify the purpose variable, to create an index for the new `tests_redacted` collection, to define the aggregation pipeline to copy a masked version of the source collection, to execute the aggregation pipeline and finally to print out the contents of the resulting masked nww collection:
+Execute the following to specify the purpose variable, to create an index for the new `tests_redacted` collection, to define the aggregation pipeline to copy a masked version of the source collection, to execute the aggregation pipeline and finally to print out the contents of the resulting masked new collection:
 
 
 ```javascript
@@ -360,9 +360,9 @@ db.tests.aggregate(maskTestPipeline);
 db.tests_redacted.find().pretty();
 ```
 
-The output should be similar as the following, but with different masked values for the `persond_id` and `dob` fields (and different `_id` values of course);
+The output should be similar as the following, but with different masked values for the `persond_id` and `dob` fields (plus different `_id` values of course);
 
-```json
+```javascript
 {
 	"_id" : ObjectId("602a897a992ab2add95b8fdc"),
 	"person_id" : "9277a551-997f-4347-897a-48c8557c5067",
@@ -410,11 +410,11 @@ This resulting masked collection can then be exported/shipped to the requesting 
 <br/>
 
 
-## Reverse Masked Person ID To Determine Real ID (Where Appropriate Security Protocols Have Been Met)
+## Determine Real ID By Reversing The Masked Person ID (When Appropriate Security Protocols Have Been Met)
 
-For this scenario, lets imagine that the 3rd party consumer of the data as spotted an issue of concern related a pattens they are seeing in test results for a specific anonymous person with the masked id `293bccc1-e820-450c-a934-82adaf20f68e` and so the redacted test results for the affected person are flagged as _Intervention Required_. Following whatever security & escalation protocol are in place between the two organisations, the masked and flagged data-set is now given back to the originating organisation to be able to derive the real identify of the affected person, to enable an intervention to be instigated (or in simpler situation maybe just the anonymous person's masked ID is provided). The 3rd party consumer still never gets the learn the real identify of the affected person.
+For this scenario, lets imagine that the 3rd party research group of the data has spotted an issue of concern related to pattens they are seeing in test results for a specific anonymous person with the masked id `293bccc1-e820-450c-a934-82adaf20f68e`. As a result the 3rd party has redacted their copy of the test results, for the affected person, to include a new flag _Intervention Required_. Following whatever security & escalation protocol are in place between the two organisations, the masked and flagged data-set is now given back to the originating organisation for them only to be able to derive the real identify of the affected person, to enable an intervention to be instigated (or in simpler situations maybe just the anonymous person's masked ID is passed between the two organisations). The 3rd party research group still never gets to learn the real identify of the affected person.
 
-To simulate this, execute the following to update the masked test results in the `tests_redacted` collection for the person listed as having the _nationality_ equal to __'US'__ - before running the code below replace the text __'REPLACE_UUID'__ with the value of the `person_id` for the _US_ citizen as displayed in the results for `db.tests_redacted.find()`:
+To simulate this, execute the following to update the masked test results in the `tests_redacted` collection for the person listed as having the _nationality_ equal to __'US'__ - before running the code below __replace__ the text __'REPLACE_UUID'__ with the value of the `person_id` for the _US_ citizen as displayed in the results for `db.tests_redacted.find()`:
 
 ```javascript
 db.tests_redacted.updateMany(
@@ -425,9 +425,9 @@ db.tests_redacted.updateMany(
 db.tests_redacted.find().pretty();
 ```
 
-The output of the first of the two commands shown above should show `modifiedCount` to be `2` and in the results of the second command, `find()`, you should see 2 of the 3 test results marked with a flag.
+The output of the first of the two commands shown above should show `modifiedCount` to be `2` and in the results of the second command, `find()`, you should see 2 of the 3 test results now marked with a flag.
 
-Given this masked data set that contains the _intervention required_ flags, the original owner of the data set, who has access the to the _tests_ and _masked_id_mappings_ collections, can now run an aggregation to show all users that were flagged by the 3rd party research group, with their real personal data, to enable contact to be made. Execute the following aggregation pipeline to derive the real, non-anonymised data for the flagged users only:
+Given this masked data-set that contains the _intervention required_ flags, the original owner of the data-set, who has access the to the _tests_ and _masked_id_mappings_ collections, can now run an aggregation to show all persons that were flagged by the 3rd party research group, with their real personal data, to enable contact to be made. Execute the following aggregation pipeline to derive the real, non-anonymised data for the flagged persons only:
 
 ```javascript
 var reverseFlaggedIdentitiesPipeline = [
@@ -491,9 +491,9 @@ var reverseFlaggedIdentitiesPipeline = [
 db.tests_redacted.aggregate(reverseFlaggedIdentitiesPipeline).pretty();
 ```
 
-The results should be the same as below (apart from the arbitrary _\_id_ fields), where the flagged person has been full identified includes the list of tests related to them, that had been flagged by the 3rd party.
+The results should be the same as shown below (apart from the arbitrary _\_id_ fields), where the flagged person has been fully identified and the results include the list of flagged tests related to each person that had been flagged by the 3rd party.
 
-```json
+```javascript
 {
 	"_id" : "1cbd158f-a9c4-4c6a-bbbe-7cbb5105f1a0",
 	"person_id" : "1723338115",
@@ -538,16 +538,4 @@ The results should be the same as below (apart from the arbitrary _\_id_ fields)
 	]
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-
 
