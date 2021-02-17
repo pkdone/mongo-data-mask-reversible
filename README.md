@@ -110,7 +110,7 @@ db.tests.insertMany([
     'lastname': 'Smith',
     'dob': ISODate('1972-01-13T09:32:07Z'),    
     'grade': 'B+',
-    'test_date': ISODate('2020-09-05T09:52:73Z'),
+    'test_date': ISODate('2020-09-05T09:52:46Z'),
   },
   {
     'person_id': '1723338115',
@@ -134,7 +134,7 @@ db.tests.insertMany([
     'lastname': 'Ranieri',
     'dob': ISODate('1985-05-12T23:14:30Z'),    
     'grade': 'A',
-    'test_date': ISODate('2020-07-14T13:27:86Z'),
+    'test_date': ISODate('2020-07-14T13:27:56Z'),
   },
 ]);
 db.tests.find().pretty();
