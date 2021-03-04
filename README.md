@@ -68,7 +68,7 @@ db.persons.insertMany([
     'lastname': 'Ranieri',
     'phone_nums': ['626-555-0113', '202-555-0173'],
     'email': 'oranieri@warmmail.com',
-    'dob ': ISODate('1985-05-12T23:14:30Z'),    
+    'dob': ISODate('1985-05-12T23:14:30Z'),    
     'address': {
         'number': 9303,
         'street': 'Mele Circle',
@@ -84,7 +84,7 @@ db.persons.insertMany([
     'lastname': 'Jones',
     'phone_nums': ['0722 127 2712', '0102 728 2710'],
     'email': 'tj@wheresmyemail.com',
-    'dob ': ISODate('1991-11-23T16:53:56Z'),    
+    'dob': ISODate('1991-11-23T16:53:56Z'),    
     'address': {
         'number': 1,
         'street': 'High Street',
